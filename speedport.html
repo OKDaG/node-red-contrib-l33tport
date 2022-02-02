@@ -1,0 +1,45 @@
+<script type="text/javascript">
+  RED.nodes.registerType('speedport',{
+      category: 'speedport',
+      color: '#a6bbcf',
+      defaults: {
+        device: {
+          type: "speedport-config",
+          required: true
+        },
+        name: {
+          value: "",
+          required: false
+        },
+        service: {
+          value: "",
+          required: true
+        },
+        action: {
+          value: "",
+          required: true
+        },
+        arguments: {
+          value: "",
+          required: false
+        }
+      },
+      inputs:1,
+      outputs:1,
+      icon: "file.png",
+      label: function() {
+          return this.name||"speedport";
+      }
+  });
+</script>
+
+<script type="text/html" data-template-name="speedport">
+  <div class="form-row">
+      <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+      <input type="text" id="node-input-name" placeholder="Name">
+  </div>
+</script>
+
+<script type="text/html" data-help-name="speedport">
+  <p>A simple node that get developer data from Speedport Hybrid</p>
+</script>

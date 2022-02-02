@@ -1,0 +1,30 @@
+{
+  "name": "node-red-contrib-l33tport",
+  "version": "1.0.0",
+  "description": "Get developer data from Speedport Hybrid",
+  "dependencies": {
+    "sjcl": "^0.20.0",
+    "querystring": "^0.20.0",
+    "http": "^0.20.0"
+  },
+  "engines": {
+    "node": ">=5.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bashgroup/node-red-contrib-fritz.git"
+  },
+  "license": "MIT",
+  "keywords": [
+    "node-red",
+    "speedport",
+    "hybrid"
+  ],
+  "node-red" : {
+    "nodes": {
+      "speedport-config": "config.js",
+      "speedport": "speedport.js"
+    }
+  },
+  "author": "Stefan Jurkuhn"
+}
