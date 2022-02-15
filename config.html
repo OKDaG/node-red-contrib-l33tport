@@ -1,14 +1,14 @@
 <script type="text/javascript">
-  RED.nodes.registerType('speedport-config',{
+  RED.nodes.registerType('speedport-config', {
       category: 'config',
       defaults: {
-          host: {value:"localhost",required:true},
+          host: {value:"localhost",required:true}
       },
       credentials: {
-          password: {type:"password"}
+          password: {type:"password",required:true}
       },
       label: function() {
-          return this.host+":"+this.port;
+          return this.host;
       }
   });
 </script>

@@ -1,7 +1,21 @@
 module.exports = function(RED) {
-  function SpeedportNode(config) {
-    RED.nodes.createNode(this,config);
+  function SpeedportNode(n) {
+    RED.nodes.createNode(this,n);
+    this.device = n.device;
+    this.config = RED.nodes.getNode(this.device);
+    this.host = this.config.host;
+    this.password = this.config.credentials.password;
     var node = this;
+
+    node.config.on('statusUpdate', node.status);
+
+    if (node.config) {
+      node.warn(`host: ${node.config.host}`);
+      node.warn(`password: ${node.config.credentials.password}`);
+    } else {
+      node.error(`no config found: ${node.config}`);
+    }
+
     node.on('input', function(msg) {
 
       var sjcl = require("sjcl");
@@ -35,14 +49,14 @@ module.exports = function(RED) {
       };
       
       function fetchIndexPage(filename, dataCallback) {
-        fetchUrl(SPEEDPORT, '/html/login/index.html', function(statusCode, result) {
+        fetchUrl(node.config.host, '/html/login/index.html', function(statusCode, result) {
           var challenge = result.match("[0-9,a-z,A-Z]{64}");
           handleChallenge(challenge, filename, dataCallback);
         });
       }
       
       function handleChallenge(challenge, filename, dataCallback) {
-        var encryptpwd = sjcl.hash.sha256.hash(challenge + ":" + PASSWORD);
+        var encryptpwd = sjcl.hash.sha256.hash(challenge + ":" + node.config.credentials.password);
         var passwordhash = sjcl.codec.hex.fromBits(encryptpwd, true);
         sendPassword(passwordhash, challenge, filename, dataCallback);
       }
@@ -55,13 +69,13 @@ module.exports = function(RED) {
             challengev: challenge
           });
         var options = {
-            host: SPEEDPORT,
+            host: node.config.host,
             path: '/data/Login.json',
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'X-Requested-With': 'XMLHttpRequest',
-                'Referer': 'http://' + SPEEDPORT + '/html/login/index.html',
+                'Referer': 'http://' + node.config.host + '/html/login/index.html',
                 'Content-Length': Buffer.byteLength(data)
             }
         };
@@ -96,7 +110,7 @@ module.exports = function(RED) {
         var cookie = "challengev=" + challengev + "; " + sessionID;
         var requestPath = "/data/" + fileName + ".json";
         var options = {
-            host: SPEEDPORT,
+            host: node.config.host,
             path: requestPath,
             method: 'GET',
             headers: {
@@ -140,7 +154,7 @@ module.exports = function(RED) {
           return parsed;
       }
       
-      fetchIndexPage(program.filename, function(data) {
+      fetchIndexPage(msg.payload, function(data) {
         var parsed = safeParse(data);
         msg.payload = JSON.stringify(parsed);
       });

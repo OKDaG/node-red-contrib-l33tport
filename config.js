@@ -1,8 +1,16 @@
 module.exports = function(RED) {
-  function SpeedportconfigNode(n) {
-      RED.nodes.createNode(this,n);
-      this.host = n.host;
-      this.password = n.password;
+  function SpeedportConfig(n) {
+    RED.nodes.createNode(this,n);
+    var node = this;
+    node.host = n.host;
+
+    if(!node.host) return;
+
   }
-  RED.nodes.registerType("speedport-config",SpeedportconfigNode);
+
+  RED.nodes.registerType("speedport-config",SpeedportConfig,{
+		credentials: {
+			password: {type: "password"}
+		}
+	});
 }
