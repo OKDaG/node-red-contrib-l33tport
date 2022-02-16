@@ -9,24 +9,16 @@ module.exports = function(RED) {
 
     node.config.on('statusUpdate', node.status);
 
-    //if (node.config) {
-    //  node.warn(`host: ${this.host}`);
-    //  node.warn(`password: ${this.password}`);
-    //} else {
-    //  node.error(`no config found: ${this.config}`);
-    //}
-
     node.on('input', function(msg) {
 
       var sjcl = require("sjcl");
       var querystring = require('querystring');
       var http = require('http');
-      
+
       var challengev = "";
       var sessionID = "";
-      
+
       function fetchUrl(host, path, onResult) {
-        // node.warn(`called fetchUrl with host: ${host} and path: ${path}`);
         var options = {
           host: host,
           port: 80,
@@ -34,14 +26,14 @@ module.exports = function(RED) {
           method: 'GET',
         };
         var req = http.request(options, function(res) {
-            var output = '';
-            res.setEncoding('utf8');
-            res.on('data', function (chunk) {
-                output += chunk;
-            });
-            res.on('end', function() {
-                onResult(res.statusCode, output);
-            });
+          var output = '';
+          res.setEncoding('utf8');
+          res.on('data', function (chunk) {
+              output += chunk;
+          });
+          res.on('end', function() {
+              onResult(res.statusCode, output);
+          });
         });
         req.on('error', function(err) {
           node.error(`error: ${err.message}`);
@@ -50,23 +42,19 @@ module.exports = function(RED) {
       };
       
       function fetchIndexPage(filename, host, password, dataCallback) {
-        // node.warn(`called fetchIndexPage with filename: ${filename} and host: ${host} and password: ${password}`);
         fetchUrl(host, '/html/login/index.html', function(statusCode, result) {
-          // node.warn(`got result: ${result}`)
           var challenge = result.match("[0-9,a-z,A-Z]{64}");
           handleChallenge(challenge, filename, host, password, dataCallback);
         });
       }
       
       function handleChallenge(challenge, filename, host, password, dataCallback) {
-        // node.warn(`called handleChallenge with filename: ${filename} and host ${host} and password: ${password} and challenge: ${challenge}`);
         var encryptpwd = sjcl.hash.sha256.hash(challenge + ":" + password);
         var passwordhash = sjcl.codec.hex.fromBits(encryptpwd, true);
         sendPassword(passwordhash, challenge, filename, host, dataCallback);
       }
       
       function sendPassword(passwordHash, challenge, filename, host, dataCallback) {
-        // node.warn(`called sendPassword with filename: ${filename} and host ${host} and passwordHash: ${passwordHash} and challenge: ${challenge}`);
         var data = querystring.stringify({
             password: passwordHash,
             csrf_token: "nulltoken",
@@ -90,34 +78,34 @@ module.exports = function(RED) {
             res.on('data', function (chunk) {
               body += chunk;
             }).on('end', function() {
-                var statusJSON = body.replace(/}\s*,\s*]/g, "}]");
-                try {
-                  status = JSON.parse(statusJSON);
+              var statusJSON = body.replace(/}\s*,\s*]/g, "}]");
+              try {
+                status = JSON.parse(statusJSON);
+              }
+              catch (e) {
+                node.error("Could not parse JSON:");
+                node.error(statusJSON);
+                var exmsg = "";
+                if (e.message) {
+                    exmsg += e.message;
                 }
-                catch (e) {
-                  node.error("Could not parse JSON:");
-                  node.error(statusJSON);
-                  var exmsg = "";
-                  if (e.message) {
-                      exmsg += e.message;
-                  }
-                  if (e.stack) {
-                      exmsg += '\n' + e.stack;
-                  }
-                  node.error(exmsg);
-                  return
+                if (e.stack) {
+                    exmsg += '\n' + e.stack;
                 }
-                var statusDict = {};
-                for (var v in status) {
-                  statusDict[status[v].varid] = status[v].varvalue
-                }
-                if (statusDict['login'] != 'success') {
-                  node.error("Login failed! ", statusDict);
-                }
-                var cookie = res.headers['set-cookie'].toString();
-                var sid = cookie.match(/^.*(SessionID_R3=[a-zA-Z0-9]*).*/);
-                sessionID = sid[1];
-                downloadJsonInfo(filename, host, dataCallback);
+                node.error(exmsg);
+                return
+              }
+              var statusDict = {};
+              for (var v in status) {
+                statusDict[status[v].varid] = status[v].varvalue
+              }
+              if (statusDict['login'] != 'success') {
+                node.error("Login failed! ", statusDict);
+              }
+              var cookie = res.headers['set-cookie'].toString();
+              var sid = cookie.match(/^.*(SessionID_R3=[a-zA-Z0-9]*).*/);
+              sessionID = sid[1];
+              downloadJsonInfo(filename, host, dataCallback);
             });
         });
         req.write(data);
@@ -126,7 +114,6 @@ module.exports = function(RED) {
       
       function downloadJsonInfo(filename, host, dataCallback)
       {
-        // node.warn(`called downloadJsonInfo with filename: ${filename} and host ${host}, challengev is ${challengev} and sessionID is ${sessionID}`);
         var cookie = "challengev=" + challengev + "; " + sessionID;
         var requestPath = "/data/" + filename + ".json";
         var options = {
@@ -143,11 +130,11 @@ module.exports = function(RED) {
           }
           var body = '';
           res.on('data', function (chunk) {
-              body += chunk;
+            body += chunk;
           }).on('end', function() {
-              var fixedQuotes = body.replace(/\'/g,'\"');
-              var fixedArrays = fixedQuotes.replace(/\},\s+? +?\]/,"}\n    ]");
-              dataCallback(fixedArrays);
+            var fixedQuotes = body.replace(/\'/g,'\"');
+            var fixedArrays = fixedQuotes.replace(/\},\s+? +?\]/,"}\n    ]");
+            dataCallback(fixedArrays);
           }).on('error', function(e) {
             node.error("Got error: ", e);
           });
@@ -155,7 +142,6 @@ module.exports = function(RED) {
       }
       
       function safeParse(input) {
-        // node.warn(`called safeParse with input: ${input}`);
         var parsed = null;
         try {
           parsed = JSON.parse(input.replace(/}\s*,\s*]/g, "}]"));
@@ -176,12 +162,10 @@ module.exports = function(RED) {
       }
       
       fetchIndexPage(msg.payload, this.host, this.password, function(data) {
-        var parsed = safeParse(data);
-        // node.warn(`got data: ${data}`);
-        msg.payload = JSON.stringify(parsed);
+        msg.payload = safeParse(data);
+        node.send(msg);
       });
 
-      node.send(msg);
     });
   }
   RED.nodes.registerType("speedport",SpeedportNode);
