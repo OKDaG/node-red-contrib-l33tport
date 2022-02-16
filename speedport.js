@@ -9,12 +9,12 @@ module.exports = function(RED) {
 
     node.config.on('statusUpdate', node.status);
 
-    if (node.config) {
-      node.warn(`host: ${node.config.host}`);
-      node.warn(`password: ${node.config.credentials.password}`);
-    } else {
-      node.error(`no config found: ${node.config}`);
-    }
+    //if (node.config) {
+    //  node.warn(`host: ${this.host}`);
+    //  node.warn(`password: ${this.password}`);
+    //} else {
+    //  node.error(`no config found: ${this.config}`);
+    //}
 
     node.on('input', function(msg) {
 
@@ -26,42 +26,47 @@ module.exports = function(RED) {
       var sessionID = "";
       
       function fetchUrl(host, path, onResult) {
-          var options = {
-            host: host,
-            port: 80,
-            path: path,
-            method: 'GET',
-          };
-          var req = http.request(options, function(res) {
-              var output = '';
-              res.setEncoding('utf8');
-              res.on('data', function (chunk) {
-                  output += chunk;
-              });
-              res.on('end', function() {
-                  onResult(res.statusCode, output);
-              });
-          });
-          req.on('error', function(err) {
-              //res.send('error: ' + err.message);
-          });
-          req.end();
+        // node.warn(`called fetchUrl with host: ${host} and path: ${path}`);
+        var options = {
+          host: host,
+          port: 80,
+          path: path,
+          method: 'GET',
+        };
+        var req = http.request(options, function(res) {
+            var output = '';
+            res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                output += chunk;
+            });
+            res.on('end', function() {
+                onResult(res.statusCode, output);
+            });
+        });
+        req.on('error', function(err) {
+          node.error(`error: ${err.message}`);
+        });
+        req.end();
       };
       
-      function fetchIndexPage(filename, dataCallback) {
-        fetchUrl(node.config.host, '/html/login/index.html', function(statusCode, result) {
+      function fetchIndexPage(filename, host, password, dataCallback) {
+        // node.warn(`called fetchIndexPage with filename: ${filename} and host: ${host} and password: ${password}`);
+        fetchUrl(host, '/html/login/index.html', function(statusCode, result) {
+          // node.warn(`got result: ${result}`)
           var challenge = result.match("[0-9,a-z,A-Z]{64}");
-          handleChallenge(challenge, filename, dataCallback);
+          handleChallenge(challenge, filename, host, password, dataCallback);
         });
       }
       
-      function handleChallenge(challenge, filename, dataCallback) {
-        var encryptpwd = sjcl.hash.sha256.hash(challenge + ":" + node.config.credentials.password);
+      function handleChallenge(challenge, filename, host, password, dataCallback) {
+        // node.warn(`called handleChallenge with filename: ${filename} and host ${host} and password: ${password} and challenge: ${challenge}`);
+        var encryptpwd = sjcl.hash.sha256.hash(challenge + ":" + password);
         var passwordhash = sjcl.codec.hex.fromBits(encryptpwd, true);
-        sendPassword(passwordhash, challenge, filename, dataCallback);
+        sendPassword(passwordhash, challenge, filename, host, dataCallback);
       }
       
-      function sendPassword(passwordHash, challenge, filename, dataCallback) {
+      function sendPassword(passwordHash, challenge, filename, host, dataCallback) {
+        // node.warn(`called sendPassword with filename: ${filename} and host ${host} and passwordHash: ${passwordHash} and challenge: ${challenge}`);
         var data = querystring.stringify({
             password: passwordHash,
             csrf_token: "nulltoken",
@@ -69,13 +74,13 @@ module.exports = function(RED) {
             challengev: challenge
           });
         var options = {
-            host: node.config.host,
+            host: host,
             path: '/data/Login.json',
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'X-Requested-With': 'XMLHttpRequest',
-                'Referer': 'http://' + node.config.host + '/html/login/index.html',
+                'Referer': 'http://' + host + '/html/login/index.html',
                 'Content-Length': Buffer.byteLength(data)
             }
         };
@@ -86,31 +91,46 @@ module.exports = function(RED) {
               body += chunk;
             }).on('end', function() {
                 var statusJSON = body.replace(/}\s*,\s*]/g, "}]");
-                status = JSON.parse(statusJSON);
+                try {
+                  status = JSON.parse(statusJSON);
+                }
+                catch (e) {
+                  node.error("Could not parse JSON:");
+                  node.error(statusJSON);
+                  var exmsg = "";
+                  if (e.message) {
+                      exmsg += e.message;
+                  }
+                  if (e.stack) {
+                      exmsg += '\n' + e.stack;
+                  }
+                  node.error(exmsg);
+                  return
+                }
                 var statusDict = {};
                 for (var v in status) {
                   statusDict[status[v].varid] = status[v].varvalue
                 }
                 if (statusDict['login'] != 'success') {
                   node.error("Login failed! ", statusDict);
-                  process.exit(1);
                 }
                 var cookie = res.headers['set-cookie'].toString();
                 var sid = cookie.match(/^.*(SessionID_R3=[a-zA-Z0-9]*).*/);
                 sessionID = sid[1];
-                downloadJsonInfo(filename, dataCallback);
+                downloadJsonInfo(filename, host, dataCallback);
             });
         });
         req.write(data);
         req.end();
       }
       
-      function downloadJsonInfo(fileName, dataCallback)
+      function downloadJsonInfo(filename, host, dataCallback)
       {
+        // node.warn(`called downloadJsonInfo with filename: ${filename} and host ${host}, challengev is ${challengev} and sessionID is ${sessionID}`);
         var cookie = "challengev=" + challengev + "; " + sessionID;
-        var requestPath = "/data/" + fileName + ".json";
+        var requestPath = "/data/" + filename + ".json";
         var options = {
-            host: node.config.host,
+            host: host,
             path: requestPath,
             method: 'GET',
             headers: {
@@ -135,27 +155,29 @@ module.exports = function(RED) {
       }
       
       function safeParse(input) {
-          var parsed = null;
-          try{
-            parsed = JSON.parse(input.replace(/}\s*,\s*]/g, "}]"));
+        // node.warn(`called safeParse with input: ${input}`);
+        var parsed = null;
+        try {
+          parsed = JSON.parse(input.replace(/}\s*,\s*]/g, "}]"));
+        }
+        catch (e) {
+          node.error("Could not parse JSON:");
+          node.error(input);
+          var exmsg = "";
+          if (e.message) {
+              exmsg += e.message;
           }
-          catch (e) {
-            node.error("Could not parse JSON:");
-            node.error(input);
-            var exmsg = "";
-            if (e.message) {
-                exmsg += e.message;
-            }
-            if (e.stack) {
-                exmsg += '\n' + e.stack;
-            }
-            node.error(exmsg);
+          if (e.stack) {
+              exmsg += '\n' + e.stack;
           }
-          return parsed;
+          node.error(exmsg);
+        }
+        return parsed;
       }
       
-      fetchIndexPage(msg.payload, function(data) {
+      fetchIndexPage(msg.payload, this.host, this.password, function(data) {
         var parsed = safeParse(data);
+        // node.warn(`got data: ${data}`);
         msg.payload = JSON.stringify(parsed);
       });
 
