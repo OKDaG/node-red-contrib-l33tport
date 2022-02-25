@@ -16,6 +16,7 @@
     "hybrid"
   ],
   "node-red": {
+    "version": ">=2.2.1",
     "nodes": {
       "speedport-config": "config.js",
       "speedport": "speedport.js"
