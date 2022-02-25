@@ -1,13 +1,13 @@
 {
   "name": "node-red-contrib-l33tport",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Get developer data from Speedport Hybrid",
   "engines": {
     "node": ">=5.0.0"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/bashgroup/node-red-contrib-fritz.git"
+    "url": "https://github.com/OKDaG/node-red-contrib-l33tport"
   },
   "license": "MIT",
   "keywords": [
